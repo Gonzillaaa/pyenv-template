@@ -1,9 +1,10 @@
-# Python Environment Setup Script
+# Python Environment Management Scripts
 
-A comprehensive ZSH script for setting up Python development environments with pyenv, UV package manager, virtual environments, and development tools.
+A collection of ZSH scripts for managing Python development environments using pyenv, UV package manager, virtual environments, and development tools.
 
-- [Python Environment Setup Script](#python-environment-setup-script)
+- [Python Environment Management Scripts](#python-environment-management-scripts)
   - [Overview](#overview)
+  - [Scripts Included](#scripts-included)
   - [Features](#features)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
@@ -27,14 +28,24 @@ A comprehensive ZSH script for setting up Python development environments with p
   - [Use Cases](#use-cases)
   - [Potential Expansions](#potential-expansions)
   - [Troubleshooting](#troubleshooting)
+  - [Testing](#testing)
+  - [Test Scripts](#test-scripts)
+  - [Test Coverage](#test-coverage)
   - [Contributing](#contributing)
   - [License](#license)
 
 ## Overview
 
-This script automates the setup of Python development environments using pyenv for Python version management and virtual environments for project isolation. It configures a comprehensive set of development tools including code formatters, linters, type checkers, and testing frameworks, all enforced through pre-commit hooks for consistent code quality.
+These scripts automate the setup and cleanup of Python development environments using pyenv for Python version management and virtual environments for project isolation. The main scripts include `pyenv-setup.sh` for creating new environments and `pyenv-cleanup.sh` for removing environments.
+
+## Scripts Included
+
+- `pyenv-setup.sh`: Sets up Python development environments
+- `pyenv-cleanup.sh`: Removes Python development environments
 
 ## Features
+
+### pyenv-setup.sh
 
 - **Python Version Management**: Uses pyenv to install and manage multiple Python versions
 - **Fast Package Management**: Integrates UV for significantly faster package installation and dependency resolution
@@ -56,12 +67,20 @@ This script automates the setup of Python development environments using pyenv f
   - Configures development tools with sensible defaults
   - Sets up pyproject.toml with UV configuration
 
+### pyenv-cleanup.sh
+
+- **Environment Management**: List, inspect, and remove pyenv virtual environments
+- **Targeted Cleanup**: Remove environments by name or prefix pattern
+- **Batch Operations**: Remove multiple environments in a single operation
+- **Interactive Mode**: Select environments to remove through an interactive interface
+- **Safety Features**: Confirmation prompts before removing environments (with force option for scripting)
+
 ## Prerequisites
 
 - ZSH shell
 - Git
 
-The script will automatically install:
+The setup script will automatically install:
 
 - pyenv
 - pyenv-virtualenv plugin
@@ -69,26 +88,32 @@ The script will automatically install:
 
 ## Installation
 
-1. Download the script:
+1. Download the scripts:
 
    ```bash
+   # Setup script
    curl -o pyenv-setup.sh https://raw.githubusercontent.com/yourusername/pyenv-setup/main/pyenv-setup.sh
+
+   # Cleanup script
+   curl -o pyenv-cleanup.sh https://raw.githubusercontent.com/yourusername/pyenv-setup/main/pyenv-cleanup.sh
    ```
 
-2. Make it executable:
+2. Make them executable:
 
    ```bash
-   chmod +x pyenv-setup.sh
+   chmod +x pyenv-setup.sh pyenv-cleanup.sh
    ```
 
-3. Move it to a directory in your PATH (optional):
+3. Move them to a directory in your PATH (optional):
    ```bash
-   mv pyenv-setup.sh /usr/local/bin/pyenv-setup
+   mv pyenv-setup.sh pyenv-cleanup.sh /usr/local/bin/
    ```
 
 ## Usage
 
-### Basic Usage
+### Setup Script (pyenv-setup.sh)
+
+#### Basic Usage
 
 ```bash
 ./pyenv-setup.sh
@@ -96,7 +121,7 @@ The script will automatically install:
 
 This will set up Python 3.12 in the current directory.
 
-### Advanced Usage
+#### Advanced Usage
 
 ```bash
 ./pyenv-setup.sh [options] [python_version] [project_directory] [venv_name] [requirements_file]
@@ -105,15 +130,40 @@ This will set up Python 3.12 in the current directory.
 Options:
 
 - `-h, --help`: Show help message and exit
+- `-v, --version`: Specify Python version (default: 3.12)
+- `-d, --directory`: Specify project directory (default: current directory)
+- `-n, --name`: Custom name for the virtual environment
+- `-r, --requirements`: Path to a requirements.txt file
 
-Arguments:
+### Cleanup Script (pyenv-cleanup.sh)
 
-- `python_version` (optional): The Python version to use (default: 3.12)
-- `project_directory` (optional): The path to the project directory (default: current directory)
-- `venv_name` (optional): Custom name for the virtual environment
-- `requirements_file` (optional): Path to a requirements.txt file
+#### Basic Usage
+
+```bash
+./pyenv-cleanup.sh --list
+```
+
+This will list all virtual environments managed by pyenv.
+
+#### Advanced Usage
+
+```bash
+./pyenv-cleanup.sh [options]
+```
+
+Options:
+
+- `-h, --help`: Show help message and exit
+- `-l, --list`: List all pyenv virtual environments
+- `-a, --all`: Remove all pyenv virtual environments
+- `-p, --prefix PREFIX`: Remove all environments starting with PREFIX
+- `-n, --name NAME`: Remove the specific environment NAME
+- `-i, --interactive`: Select environments to remove interactively
+- `-f, --force`: Skip confirmation prompts (use with caution)
 
 ### Examples
+
+#### Setup Script Examples
 
 1. Create a new project using defaults (Python 3.12 in current directory):
 
@@ -124,19 +174,19 @@ Arguments:
 2. Create a new project with a specific Python version:
 
    ```bash
-   ./pyenv-setup.sh 3.11
+   ./pyenv-setup.sh -v 3.11
    ```
 
 3. Create a new project with Python 3.10 in a specific directory:
 
    ```bash
-   ./pyenv-setup.sh 3.10 ~/projects/my_new_project
+   ./pyenv-setup.sh -v 3.10 -d ~/projects/my_new_project
    ```
 
 4. Create a project with a custom virtual environment name:
 
    ```bash
-   ./pyenv-setup.sh 3.9 ~/projects/my_project custom_venv_name
+   ./pyenv-setup.sh -v 3.9 -d ~/projects/my_project -n custom_venv_name
    ```
 
    Note: If a virtual environment named `custom_venv_name` already exists, a new one will be created with the name pattern `env-{random_string}`.
@@ -144,13 +194,13 @@ Arguments:
 5. Create a project in current directory with a specific Python version and custom venv name:
 
    ```bash
-   ./pyenv-setup.sh 3.8 . my_special_env
+   ./pyenv-setup.sh -v 3.8 -d . -n my_special_env
    ```
 
 6. Create a project and install packages from requirements.txt:
 
    ```bash
-   ./pyenv-setup.sh 3.11 ~/projects/my_project my_project_env ~/requirements.txt
+   ./pyenv-setup.sh -v 3.11 -d ~/projects/my_project -n my_project_env -r ~/requirements.txt
    ```
 
 7. Working with existing environments:
@@ -161,6 +211,46 @@ Arguments:
 
    # The script will automatically create a new environment with a name like:
    # env-a1b2c3d4
+   ```
+
+#### Cleanup Script Examples
+
+1. List all virtual environments:
+
+   ```bash
+   ./pyenv-cleanup.sh --list
+   ```
+
+2. Remove a specific environment:
+
+   ```bash
+   ./pyenv-cleanup.sh --name my_project_env
+   ```
+
+3. Remove all environments with a specific prefix:
+
+   ```bash
+   ./pyenv-cleanup.sh --prefix env-
+   ```
+
+   This would remove all environments that start with "env-" (useful for cleaning up automatically generated environments).
+
+4. Use interactive mode to select which environments to remove:
+
+   ```bash
+   ./pyenv-cleanup.sh --interactive
+   ```
+
+5. Remove all virtual environments (with confirmation):
+
+   ```bash
+   ./pyenv-cleanup.sh --all
+   ```
+
+6. Remove environments without confirmation (useful for scripting):
+
+   ```bash
+   ./pyenv-cleanup.sh --prefix old-env- --force
    ```
 
 ## Project Structure
@@ -500,10 +590,24 @@ Pre-commit hooks run automatically before each commit to ensure code quality:
    - Accelerate development with faster dependency installations
 
 6. **High-Performance Development Teams**
+
    - Reduce time spent waiting for package installations
    - Improve developer experience with faster tooling
    - Standardize on modern Python packaging practices
    - Streamline onboarding with consistent environments
+
+7. **Environment Management and Cleanup**
+
+   - Maintain a clean development system by removing unused environments
+   - Free up disk space by cleaning old or forgotten virtual environments
+   - Batch cleanup of temporary or experimental environments
+   - Safely manage multiple projects' environments
+
+8. **Automated CI/CD Pipelines**
+   - Create temporary environments for testing and then clean them up
+   - Manage environment lifecycle in automated workflows
+   - Ensure clean state between test runs
+   - Integrate creation and cleanup in deployment scripts
 
 ## Potential Expansions
 
@@ -550,16 +654,35 @@ Pre-commit hooks run automatically before each commit to ensure code quality:
    - Support custom template repositories
    - Add template customization options
 
-8. **Interactive Mode**
+8. **Interactive Mode Improvements**
 
-   - Add a fully interactive setup process
-   - Allow selecting features and configurations
+   - Enhance the interactive setup process
+   - Add graphical selection interface for cleanup script
    - Provide a guided experience for new users
 
 9. **Plugin System**
+
    - Create a plugin architecture for custom extensions
    - Allow community-contributed configurations
    - Support organization-specific setups
+
+10. **Environment Cleanup Enhancements**
+
+    - Add scheduling options for automatic cleanup of old environments
+    - Implement environment archiving before removal
+    - Add usage statistics to identify unused environments
+    - Support batch operations based on creation date or last use
+
+11. **Multi-Platform Support**
+
+    - Improve Windows compatibility
+    - Add support for other shells (bash, fish)
+    - Create standalone Python versions not dependent on ZSH
+
+12. **Integration with Version Control Systems**
+    - Auto-configuration for different VCS systems
+    - Repository templates with CI/CD already configured
+    - Automatic project initialization with appropriate .gitignore
 
 ## Troubleshooting
 
@@ -609,6 +732,44 @@ Pre-commit hooks run automatically before each commit to ensure code quality:
 
 - Solution: Restart your shell or source your `.zshrc` file
 - Alternative: Add `~/.cargo/bin` to your PATH manually
+
+## Testing
+
+The repository includes comprehensive test scripts for both the setup and cleanup functionalities. These tests ensure that all features work correctly across different scenarios.
+
+### Test Scripts
+
+- `tests/test_pyenv_setup.sh`: Tests for the pyenv-setup.sh script
+- `tests/test-pyenv-cleanup.sh`: Tests for the pyenv-cleanup.sh script
+
+### Running Tests
+
+To run the tests, navigate to the repository directory and execute:
+
+```bash
+# Run setup script tests
+./tests/test_pyenv_setup.sh
+
+# Run cleanup script tests
+./tests/test-pyenv-cleanup.sh
+
+# Run all tests
+cd tests && ./test_pyenv_setup.sh && ./test-pyenv-cleanup.sh
+```
+
+The test scripts will create temporary test environments, verify that the scripts function correctly, and clean up afterward.
+
+### Test Coverage
+
+The tests cover:
+
+- Basic functionality of both scripts
+- Environment creation and naming
+- Package installation
+- Project structure creation
+- Configuration file generation
+- Environment cleanup operations
+- Error handling and edge cases
 
 ## Contributing
 
