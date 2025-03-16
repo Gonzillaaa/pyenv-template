@@ -128,6 +128,23 @@ if [ ! -d "$(pyenv root)/plugins/pyenv-virtualenv" ]; then
     eval "$(pyenv virtualenv-init -)"
     
     print_message "$GREEN" "pyenv-virtualenv installed successfully!"
+else
+    # Ensure virtualenv-init is properly configured in the user's shell
+    if ! grep -q "pyenv virtualenv-init" ~/.zshrc; then
+        print_message "$YELLOW" "Adding pyenv virtualenv-init to ~/.zshrc..."
+        echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.zshrc
+        
+        # Initialize virtualenv-init right away for this session
+        eval "$(pyenv virtualenv-init -)"
+        
+        print_message "$GREEN" "Added pyenv virtualenv-init to ~/.zshrc"
+    fi
+    
+    # Ensure virtualenv-init is active in the current session
+    if ! env | grep -q "PYENV_VIRTUALENV_INIT=1"; then
+        print_message "$YELLOW" "Initializing pyenv-virtualenv for current session..."
+        eval "$(pyenv virtualenv-init -)"
+    fi
 fi
 
 # Function to install UV
@@ -739,3 +756,7 @@ print_message "$BLUE" "Currently in: $(pwd) with $(python --version)"
 print_message "$BLUE" "Package manager: UV $(uv --version)"
 print_message "$YELLOW" "Project structure created:"
 find . -type d -maxdepth 1 | sort | grep -v "^\.$" | sed 's/\.\///'
+
+# Add a note about auto-activation for new shell sessions
+print_message "$YELLOW" "NOTE: You might need to restart your shell session for auto-activation to work."
+print_message "$YELLOW" "After restarting, the environment will auto-activate when you enter $PROJECT_DIR"
