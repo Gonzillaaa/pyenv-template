@@ -27,74 +27,31 @@ show_help() {
     echo "  -h, --help                Show this help message and exit"
     echo "  -v, --version VERSION     The Python version to use (default: 3.12)"
     echo "  -d, --directory DIR       The project directory path (default: current directory)"
-    echo "  -n, --name NAME           Custom name for the virtual environment"
+    echo "  -n, --name NAME           Custom name for the virtual environment (not used with local .venv)"
     echo "  -r, --requirements FILE   Path to requirements.txt file"
+    echo "  --docker                  Generate Docker configuration files"
     echo ""
     echo "Examples:"
     echo "  ./pyenv-setup.sh                                # Use Python 3.12 in current directory"
     echo "  ./pyenv-setup.sh -v 3.11                        # Use Python 3.11 in current directory" 
     echo "  ./pyenv-setup.sh -v 3.10 -d ~/projects/my_project  # Use Python 3.10 in specified directory"
-    echo "  ./pyenv-setup.sh -v 3.9 -d . -n custom_venv_name   # Use Python 3.9 in current dir with custom venv name"
     echo "  ./pyenv-setup.sh -r requirements.txt            # Use requirements.txt file"
+    echo "  ./pyenv-setup.sh --docker                       # Generate Docker configuration files"
     echo ""
     echo "Notes:"
-    echo "  - The virtual environment will auto-activate when entering the project directory"
+    echo "  - The virtual environment is created as a .venv directory in the project folder"
     echo "  - If the project directory doesn't exist, it will be created"
-    echo "  - If venv_name isn't provided, the project directory name will be used"
-    echo "  - If a virtual environment with the specified name already exists, a new one named 'env-{random}' will be created"
+    echo "  - If .venv already exists, you'll be asked whether to recreate it"
     echo "  - Standard directories will be created: src, tests, docs, scripts"
     echo "  - UV is used for fast package management"
     echo "  - Development tools include: black, flake8, mypy, pytest, and pre-commit hooks"
+    echo "  - Auto-activation setup: direnv (.envrc) if available, or activate.sh script"
 }
 
 # Function to install packages with UV
 install_packages() {
-    local venv_name=$1
-    local requirements_file=$2
-    local recreate_venv=$3
-    local python_version=$4
-    
-    # Install UV within the virtual environment if needed
-    if $recreate_venv || ! command -v uv &> /dev/null; then
-        print_message "$YELLOW" "Installing UV package manager in the virtual environment..."
-        pip install uv
-    fi
-    
-    # Create pyproject.toml for UV
-    create_pyproject_toml "$python_version"
-    
-    # Make sure we're using the correct virtual environment
-    if command -v pyenv &> /dev/null; then
-        eval "$(pyenv init -)"
-        pyenv shell "$venv_name"
-        
-        # Install required packages if a requirements file is provided
-        if [ -n "$requirements_file" ] && [ -f "$requirements_file" ]; then
-            print_message "$YELLOW" "Installing packages from $requirements_file using UV..."
-            pip install --upgrade pip
-            # Use pip instead of UV if we're having issues with the environment
-            pip install -r "$requirements_file"
-            print_message "$GREEN" "Packages installed successfully!"
-        else
-            # Install development packages
-            print_message "$YELLOW" "Installing development packages..."
-            pip install --upgrade pip
-            pip install black flake8 mypy pylint pytest pre-commit
-            print_message "$GREEN" "Development packages installed!"
-        fi
-        
-        # Reset shell
-        pyenv shell --unset
-    else
-        print_message "$RED" "Error: pyenv is not available in the current environment."
-        print_message "$YELLOW" "Installing packages with standard pip..."
-        
-        if [ -n "$requirements_file" ] && [ -f "$requirements_file" ]; then
-            pip install -r "$requirements_file"
-        else
-            pip install black flake8 mypy pylint pytest pre-commit
-        fi
-    fi
+    # This function is no longer needed as package installation is handled in create_pyenv_venv
+    return 0
 }
 
 # Check if pyenv is installed
@@ -405,12 +362,13 @@ Created with pyenv-setup on $(date)
 ## Environment
 
 * Python version: $python_version
-* Virtual environment: $venv_name
+* Virtual environment: Local .venv directory
 * Package manager: UV
 
 ## Project Structure
 
 \`\`\`
+├── .venv/            # Local virtual environment (not committed to git)
 ├── docs/             # Documentation files
 ├── scripts/          # Utility scripts
 ├── src/              # Source code
@@ -419,6 +377,7 @@ Created with pyenv-setup on $(date)
 ├── .flake8           # Flake8 configuration
 ├── .gitignore        # Git ignore rules
 ├── .pre-commit-config.yaml  # Pre-commit hooks configuration
+├── activate.sh       # Helper script to activate the environment
 ├── mypy.ini          # MyPy configuration
 ├── pyproject.toml    # Project configuration and UV settings
 └── README.md         # This file
@@ -428,7 +387,9 @@ Created with pyenv-setup on $(date)
 
 1. Clone this repository
 2. Ensure pyenv is installed
-3. The virtual environment will auto-activate when entering the project directory
+3. Activate the virtual environment:
+   - Using direnv (if installed): cd into the directory (auto-activates)
+   - Manually: \`source .venv/bin/activate\` or \`./activate.sh\`
 
 ## Development
 
@@ -441,12 +402,12 @@ This project uses:
 
 To install dependencies:
 \`\`\`bash
-uv pip install -e .
+pip install -e .
 \`\`\`
 
 To install development dependencies:
 \`\`\`bash
-uv pip install -e ".[dev]"
+pip install -e ".[dev]"
 \`\`\`
 
 To run the tests:
@@ -474,33 +435,45 @@ create_pyenv_venv() {
         print_message "$BLUE" "Python $python_version is already installed."
     fi
     
-    # Check if the virtualenv already exists
-    if pyenv virtualenvs | grep -q "$venv_name"; then
-        print_message "$YELLOW" "Virtual environment '$venv_name' already exists."
-        
-        # Generate a new environment name with random string
-        local random_string=$(LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom | head -c 8)
-        local new_venv_name="env-${random_string}"
-        
-        print_message "$YELLOW" "Creating a new environment with name: $new_venv_name"
-        venv_name=$new_venv_name
-        recreate_venv=true
+    # Create project directory if it doesn't exist
+    print_message "$YELLOW" "Creating/using project directory: $project_dir"
+    mkdir -p "$project_dir"
+    cd "$project_dir" || exit
+    
+    # Set the local Python version for the project directory
+    pyenv local "$python_version"
+    
+    # Check if the .venv directory already exists
+    if [ -d ".venv" ]; then
+        print_message "$YELLOW" "Virtual environment '.venv' already exists in this directory."
+        read -p "Do you want to recreate it? (y/n): " choice
+        case "$choice" in
+            y|Y ) 
+                print_message "$YELLOW" "Removing existing .venv directory..."
+                rm -rf .venv
+                recreate_venv=true
+                ;;
+            * ) 
+                print_message "$BLUE" "Using existing .venv directory."
+                ;;
+        esac
     else
         recreate_venv=true
     fi
     
     # Create virtual environment if needed
     if $recreate_venv; then
-        print_message "$YELLOW" "Creating virtual environment '$venv_name' with Python $python_version..."
-        pyenv virtualenv "$python_version" "$venv_name"
+        print_message "$YELLOW" "Creating virtual environment '.venv' with Python $python_version..."
+        python -m venv .venv
     fi
     
-    # Create project directory if it doesn't exist
-    mkdir -p "$project_dir"
+    # Add .venv to .gitignore if not already there
+    if ! grep -q "^\.venv/$" .gitignore 2>/dev/null; then
+        echo ".venv/" >> .gitignore
+    fi
     
-    # Set the local Python version for the project directory
-    cd "$project_dir" || exit
-    pyenv local "$venv_name"
+    # Activate the virtual environment for the current session
+    source .venv/bin/activate
     
     # Initialize Git repository if not already initialized
     if [ ! -d ".git" ]; then
@@ -537,10 +510,42 @@ EOF
 """
 Sample test file.
 """
+import os
+import sys
+import pytest
+
 
 def test_sample():
     """Sample test function."""
     assert True
+
+
+def test_virtual_environment():
+    """Test that we're running in the virtual environment."""
+    # Check if we're running in a virtual environment
+    assert sys.prefix != sys.base_prefix, "Not running in a virtual environment"
+    
+    # Check if we can import installed packages
+    try:
+        import pytest
+        assert pytest is not None
+    except ImportError:
+        pytest.fail("Failed to import pytest - environment may not be set up correctly")
+
+
+def test_project_imports():
+    """Test that we can import project modules."""
+    # Add parent directory to path
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+    
+    # Try importing the core module
+    try:
+        from src.$(basename "$project_dir").core import get_version
+        assert get_version() is not None
+    except ImportError as e:
+        pytest.fail(f"Failed to import project module: {e}")
 EOF
     
     # Create sample module 
@@ -617,8 +622,30 @@ EOF
         create_gitignore
     fi
     
-    # Install packages with UV
-    install_packages "$venv_name" "$requirements_file" "$recreate_venv" "$python_version"
+    # Update pip and install packages
+    print_message "$YELLOW" "Updating pip and installing packages..."
+    pip install --upgrade pip
+
+    # Install UV within the virtual environment if needed
+    if ! command -v uv &> /dev/null; then
+        print_message "$YELLOW" "Installing UV package manager in the virtual environment..."
+        pip install uv
+    fi
+    
+    # Create pyproject.toml for UV
+    create_pyproject_toml "$python_version"
+    
+    # Install required packages if a requirements file is provided
+    if [ -n "$requirements_file" ] && [ -f "$requirements_file" ]; then
+        print_message "$YELLOW" "Installing packages from $requirements_file..."
+        pip install -r "$requirements_file"
+        print_message "$GREEN" "Packages installed successfully!"
+    else
+        # Install development packages
+        print_message "$YELLOW" "Installing development packages..."
+        pip install black flake8 mypy pylint pytest pre-commit
+        print_message "$GREEN" "Development packages installed!"
+    fi
     
     # Set up flake8 configuration
     create_flake8_config
@@ -631,37 +658,258 @@ EOF
     
     # Initialize pre-commit
     print_message "$YELLOW" "Setting up pre-commit hooks..."
-    # Make sure we're using the pre-commit from the virtual environment
-    if command -v pyenv &> /dev/null; then
-        eval "$(pyenv init -)"
-        pyenv shell "$venv_name"
-        if [ -f "$(pyenv which pre-commit)" ]; then
-            # Ensure there's at least one commit before initializing pre-commit hooks
-            if ! git rev-parse --verify HEAD &> /dev/null; then
-                print_message "$YELLOW" "Creating initial commit for pre-commit hooks..."
-                git add .
-                git commit -m "Initial commit" --no-verify
-            fi
-            "$(pyenv which pre-commit)" install
-            print_message "$GREEN" "Pre-commit hooks installed successfully!"
-        else
-            print_message "$YELLOW" "Warning: pre-commit executable not found in virtual environment."
-            print_message "$YELLOW" "You may need to manually run: 'pre-commit install' after setup."
-        fi
-        # Reset shell
-        pyenv shell --unset
+    # Ensure there's at least one commit before initializing pre-commit hooks
+    if ! git rev-parse --verify HEAD &> /dev/null; then
+        print_message "$YELLOW" "Creating initial commit for pre-commit hooks..."
+        git add .
+        git commit -m "Initial commit" --no-verify
+    fi
+    
+    if command -v pre-commit &> /dev/null; then
+        pre-commit install
+        print_message "$GREEN" "Pre-commit hooks installed successfully!"
     else
-        print_message "$YELLOW" "Warning: Unable to initialize pre-commit hooks automatically."
+        print_message "$YELLOW" "Warning: pre-commit executable not found in virtual environment."
         print_message "$YELLOW" "You may need to manually run: 'pre-commit install' after setup."
     fi
     
     # Create a README.md if it doesn't exist
     if [ ! -f README.md ]; then
-        create_readme "$python_version" "$venv_name"
+        create_readme "$python_version" ".venv"
     fi
     
+    # Create .envrc file for direnv auto-activation (if installed)
+    if command -v direnv &> /dev/null; then
+        print_message "$YELLOW" "Creating .envrc for direnv auto-activation..."
+        echo "source .venv/bin/activate" > .envrc
+        direnv allow
+    else
+        # Create activation script for manual activation
+        print_message "$YELLOW" "Creating activate.sh script for manual activation..."
+        cat > activate.sh << EOF
+#!/bin/bash
+source .venv/bin/activate
+EOF
+        chmod +x activate.sh
+    fi
+    
+    # Deactivate the virtual environment
+    deactivate
+    
     print_message "$GREEN" "Virtual environment created and configured successfully!"
-    print_message "$BLUE" "The environment will auto-activate when you enter $project_dir"
+    print_message "$BLUE" "To activate the environment manually, run: source .venv/bin/activate"
+    if [ -f "activate.sh" ]; then
+        print_message "$BLUE" "Or run: ./activate.sh"
+    fi
+    if command -v direnv &> /dev/null; then
+        print_message "$BLUE" "The environment will auto-activate with direnv when you enter $project_dir"
+    fi
+}
+
+# Function to create a Dockerfile
+create_dockerfile() {
+    local python_version=$1
+    local project_dir=$2
+    
+    print_message "$YELLOW" "Creating Dockerfile..."
+    
+    cat > "$project_dir/Dockerfile" << EOF
+FROM python:$python_version-slim
+
+WORKDIR /app
+
+# Copy requirements file and install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy project files
+COPY . .
+
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Default command
+CMD ["python", "src/app.py"]
+EOF
+    
+    print_message "$GREEN" "Dockerfile created successfully!"
+}
+
+# Function to create a docker-compose.yml file
+create_docker_compose() {
+    local python_version=$1
+    local project_dir=$2
+    local project_name=$(basename "$project_dir")
+    
+    print_message "$YELLOW" "Creating docker-compose.yml..."
+    
+    cat > "$project_dir/docker-compose.yml" << EOF
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+    ports:
+      - "8000:8000"
+    command: python src/app.py
+    # Uncomment for development with auto-reload
+    # command: python -m uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+EOF
+    
+    print_message "$GREEN" "docker-compose.yml created successfully!"
+}
+
+# Function to create a .dockerignore file
+create_dockerignore() {
+    local project_dir=$1
+    
+    print_message "$YELLOW" "Creating .dockerignore..."
+    
+    cat > "$project_dir/.dockerignore" << EOF
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+.env
+.venv
+env/
+venv/
+ENV/
+.python-version
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Project specific
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Docker specific
+Dockerfile
+docker-compose.yml
+EOF
+    
+    print_message "$GREEN" ".dockerignore created successfully!"
+}
+
+# Function to update README.md with Docker instructions
+update_readme_with_docker_info() {
+    local project_dir=$1
+    local python_version=$2
+    local readme_file="$project_dir/README.md"
+    
+    # Check if README.md exists
+    if [ -f "$readme_file" ]; then
+        # Check if Docker section already exists
+        if ! grep -q "## Docker" "$readme_file"; then
+            print_message "$YELLOW" "Updating README.md with Docker information..."
+            
+            # Append Docker section to README.md
+            cat >> "$readme_file" << EOF
+
+## Docker
+
+This project supports Docker for containerized development and deployment.
+
+### Development with Docker
+
+To start the development environment using Docker:
+
+```bash
+docker-compose up
+```
+
+### Building the Docker image
+
+To build the Docker image:
+
+```bash
+docker build -t project-name .
+```
+
+### Running the Docker container
+
+To run the Docker container:
+
+```bash
+docker run -p 8000:8000 project-name
+```
+
+### Docker configuration
+
+- Dockerfile: Contains the instructions to build the Docker image.
+- docker-compose.yml: Configuration for Docker Compose to run multiple services.
+- .dockerignore: Specifies which files should be excluded from the Docker build context.
+EOF
+            
+            print_message "$GREEN" "README.md updated with Docker information!"
+        else
+            print_message "$YELLOW" "Docker section already exists in README.md. No changes made."
+        fi
+    else
+        # Create README.md with Docker information
+        create_readme "$python_version" "dockerized"
+    fi
+}
+
+# Function to set up Docker configuration
+setup_docker() {
+    local python_version=$1
+    local project_dir=$2
+    
+    print_message "$BLUE" "Setting up Docker configuration..."
+    
+    # Create Dockerfile
+    create_dockerfile "$python_version" "$project_dir"
+    
+    # Create docker-compose.yml
+    create_docker_compose "$python_version" "$project_dir"
+    
+    # Create .dockerignore
+    create_dockerignore "$project_dir"
+    
+    # Update README.md with Docker instructions
+    update_readme_with_docker_info "$project_dir" "$python_version"
+    
+    print_message "$GREEN" "Docker configuration set up successfully!"
 }
 
 # Set default values
@@ -673,6 +921,7 @@ PYTHON_VERSION=$DEFAULT_PYTHON_VERSION
 PROJECT_DIR=$DEFAULT_PROJECT_DIR
 VENV_NAME=""
 REQUIREMENTS_FILE=""
+DOCKER_CONFIG=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -712,6 +961,10 @@ while [[ $# -gt 0 ]]; do
             REQUIREMENTS_FILE="$2"
             shift 2
             ;;
+        --docker)
+            DOCKER_CONFIG=true
+            shift
+            ;;
         *)
             # For backward compatibility, accept positional arguments
             if [[ -z "$PYTHON_VERSION" || "$PYTHON_VERSION" == "$DEFAULT_PYTHON_VERSION" ]]; then
@@ -735,9 +988,9 @@ done
 print_message "$BLUE" "Using Python version: $PYTHON_VERSION"
 print_message "$BLUE" "Project directory: $PROJECT_DIR"
 if [ -n "$VENV_NAME" ]; then
-    print_message "$BLUE" "Virtual environment name: $VENV_NAME"
+    print_message "$BLUE" "Virtual environment name: $VENV_NAME (note: using local .venv directory instead)"
 else
-    print_message "$BLUE" "Virtual environment name will be derived from project directory"
+    print_message "$BLUE" "Virtual environment will be created in .venv directory"
 fi
 if [ -n "$REQUIREMENTS_FILE" ]; then
     print_message "$BLUE" "Requirements file: $REQUIREMENTS_FILE"
@@ -746,17 +999,29 @@ fi
 # Install UV globally
 install_uv
 
-# Create pyenv environment
+# Main script execution
+# Resolve project directory (convert to absolute path if needed)
+if [[ "$PROJECT_DIR" != /* ]]; then
+    # Convert relative path to absolute, if the directory exists
+    if [ -d "$PROJECT_DIR" ]; then
+        PROJECT_DIR="$(cd "$PROJECT_DIR" 2>/dev/null && pwd)"
+    else
+        # For non-existent directories, create the full path
+        PROJECT_DIR="$(pwd)/$PROJECT_DIR"
+    fi
+fi
+
+# Set up pyenv environment
 create_pyenv_venv "$PYTHON_VERSION" "$PROJECT_DIR" "$VENV_NAME" "$REQUIREMENTS_FILE"
 
-# Final message
-print_message "$GREEN" "Setup complete! Your Python environment is ready."
-cd "$PROJECT_DIR" # Ensure we're in the project directory
-print_message "$BLUE" "Currently in: $(pwd) with $(python --version)"
-print_message "$BLUE" "Package manager: UV $(uv --version)"
-print_message "$YELLOW" "Project structure created:"
-find . -type d -maxdepth 1 | sort | grep -v "^\.$" | sed 's/\.\///'
+# Set up Docker configuration if requested
+if $DOCKER_CONFIG; then
+    setup_docker "$PYTHON_VERSION" "$PROJECT_DIR"
+fi
 
-# Add a note about auto-activation for new shell sessions
-print_message "$YELLOW" "NOTE: You might need to restart your shell session for auto-activation to work."
-print_message "$YELLOW" "After restarting, the environment will auto-activate when you enter $PROJECT_DIR"
+# Print completion message
+print_message "$GREEN" "Setup completed successfully!"
+if $DOCKER_CONFIG; then
+    print_message "$BLUE" "Docker configuration files have been generated."
+    print_message "$BLUE" "You can now use 'docker-compose up' to start the Docker environment."
+fi
